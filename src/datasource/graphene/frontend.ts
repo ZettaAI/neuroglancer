@@ -1963,7 +1963,6 @@ class GrapheneGraphServerInterface {
   async getRoot(segment: bigint, timestamp = 0) {
     const timestampEpoch = timestamp / 1000;
     const { fetchOkImpl, baseUrl } = this.httpSource;
-
     const jsonResp = await withErrorMessageHTTP(
       fetchOkImpl(
         `${baseUrl}/node/${String(segment)}/root?int64_as_str=1${
@@ -2511,6 +2510,17 @@ const synchronizeAnnotationSource = (
     if (selection) source.delete(selection);
   });
 
+const synchronizeAnnotationSource = (
+  source: WatchableSet<SegmentSelection>,
+  state: AnnotationLayerState,
+) => {
+  const annotationSource = state.source;
+  annotationSource.childDeleted.add((annotationId) => {
+    const selection = [...source].find(
+      (selection) => selection.annotationReference?.id === annotationId,
+    );
+    if (selection) source.delete(selection);
+  });
   source.changed.add((x, add) => {
     if (x === null) {
       for (const annotation of annotationSource) {
