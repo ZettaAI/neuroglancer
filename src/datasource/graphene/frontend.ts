@@ -1963,6 +1963,17 @@ class GrapheneGraphServerInterface {
   async getRoot(segment: bigint, timestamp = 0) {
     const timestampEpoch = timestamp / 1000;
     const { fetchOkImpl, baseUrl } = this.httpSource;
+    const response = await fetchOkImpl(`${baseUrl}/oldest_timestamp`).then(
+      (response) => response.json(),
+    );
+    const isoString = verifyObjectProperty(response, "iso", verifyString);
+    return new Date(isoString).valueOf();
+  }
+
+  async getRoot(segment: Uint64, timestamp = 0) {
+    const timestampEpoch = timestamp / 1000;
+    const { fetchOkImpl, baseUrl } = this.httpSource;
+
     const jsonResp = await withErrorMessageHTTP(
       fetchOkImpl(
         `${baseUrl}/node/${String(segment)}/root?int64_as_str=1${
