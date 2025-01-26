@@ -53,6 +53,7 @@ import {
   isBaseSegmentId,
   makeChunkedGraphChunkSpecification,
   MeshSourceParameters,
+  MultiscaleMeshSourceParameters,
   PYCG_APP_VERSION,
   getHttpSource,
 } from "#src/datasource/graphene/base.js";
@@ -89,7 +90,7 @@ import type {
 import type { LoadedDataSubsource } from "#src/layer/layer_data_source.js";
 import { LoadedLayerDataSource } from "#src/layer/layer_data_source.js";
 import { SegmentationUserLayer } from "#src/layer/segmentation/index.js";
-import { MeshSource } from "#src/mesh/frontend.js";
+import { MeshSource, MultiscaleMeshSource } from "#src/mesh/frontend.js";
 import type { DisplayDimensionRenderInfo } from "#src/navigation_state.js";
 import type {
   ChunkTransformParameters,
@@ -208,6 +209,7 @@ import {
   addLayerControlToOptionsTab,
   registerLayerControl,
 } from "#src/widget/layer_control.js";
+import { VertexPositionFormat } from "#src/mesh/base.js";
 
 function vec4FromVec3(vec: vec3, alpha = 0) {
   const res = vec4.clone([...vec]);
@@ -238,6 +240,9 @@ class GrapheneMeshSource extends WithParameters(
     return getGrapheneFragmentKey(fragmentId);
   }
 }
+
+class GrapheneMultiscaleMeshSource extends
+(WithParameters(WithCredentialsProvider<SpecialProtocolCredentials>()(MultiscaleMeshSource), MultiscaleMeshSourceParameters)) {}
 
 class AppInfo {
   segmentationUrl: string;
