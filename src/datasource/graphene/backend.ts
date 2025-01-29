@@ -321,7 +321,7 @@ export class GrapheneMultiscaleMeshSource extends WithParameters(
     chunk: MultiscaleFragmentChunk,
     abortSignal: AbortSignal,
   ): Promise<void> {
-    const { credentialsProvider, parameters } = this;
+    const { parameters } = this;
     const manifestChunk = chunk.manifestChunk! as GrapheneMultiscaleManifestChunk;
     const chunkIndex = chunk.chunkIndex;
     const { fragmentIds } = manifestChunk;
@@ -333,7 +333,7 @@ export class GrapheneMultiscaleMeshSource extends WithParameters(
         fragmentId = fragmentId.substring(fragmentId.indexOf(":") + 1);
       }
       const response = await getFragmentDownloadPromise(
-        credentialsProvider,
+        undefined,
         fragmentId,
         parameters,
         abortSignal,
