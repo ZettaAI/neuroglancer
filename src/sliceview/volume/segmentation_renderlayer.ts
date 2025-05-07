@@ -267,9 +267,48 @@ uint64_t getMappedObjectId(uint64_t value) {
   float alpha = uSelectedAlpha;
   float saturation = uSaturation;
 `;
+
+    let getMappedIdColor = `vec4 getMappedIdColor(uint64_t value) {
+  `;
+    // If the value has a mapped color, use it; otherwise, compute the color.
+
+    // specific color, highlight ok
+    if (parameters.hasSegmentStatedColors) {
+      this.segmentStatedColorShaderManager.defineShader(builder);
+      getMappedIdColor += `
+    vec4 rgba;
+    if (${this.segmentStatedColorShaderManager.getFunctionName}(value, rgba)) {
+      return rgba;
+    }
+  `;
+    }
+    if (parameters.hasSegmentDefaultColor) {
+      builder.addUniform("highp vec4", "uSegmentDefaultColor");
+      getMappedIdColor += `  return uSegmentDefaultColor;
+  `;
+    } else {
+      this.segmentColorShaderManager.defineShader(builder);
+      getMappedIdColor += `  return vec4(segmentColorHash(value), 0.0);
+  `;
+    }
+    getMappedIdColor += `
+  }
+  `;
+    builder.addFragmentCode(getMappedIdColor);
+
     if (parameters.hideSegmentZero) {
       fragmentMain += `
-  if (value.value[0] == 0u && value.value[1] == 0u) {
+  if (value.value[0] == 0u && value.value[1] == 0u) {`;
+      if (parameters.hasSegmentStatedColors) {
+        fragmentMain += `
+    vec4 rgba;
+    if (${this.segmentStatedColorShaderManager.getFunctionName}(valueForColor, rgba)) {
+      emit(vec4(mix(vec3(1.0,1.0,1.0), vec3(rgba), saturation), alpha));
+      return;
+    }
+  `;
+      }
+      fragmentMain += `
     emit(vec4(vec4(0, 0, 0, 0)));
     return;
   }
@@ -297,32 +336,6 @@ uint64_t getMappedObjectId(uint64_t value) {
     alpha = uNotSelectedAlpha;
   }
 `;
-    let getMappedIdColor = `vec4 getMappedIdColor(uint64_t value) {
-`;
-    // If the value has a mapped color, use it; otherwise, compute the color.
-    if (parameters.hasSegmentStatedColors) {
-      this.segmentStatedColorShaderManager.defineShader(builder);
-      getMappedIdColor += `
-  vec4 rgba;
-  if (${this.segmentStatedColorShaderManager.getFunctionName}(value, rgba)) {
-    return rgba;
-  }
-`;
-    }
-    if (parameters.hasSegmentDefaultColor) {
-      builder.addUniform("highp vec4", "uSegmentDefaultColor");
-      getMappedIdColor += `  return uSegmentDefaultColor;
-`;
-    } else {
-      this.segmentColorShaderManager.defineShader(builder);
-      getMappedIdColor += `  return vec4(segmentColorHash(value), 0.0);
-`;
-    }
-    getMappedIdColor += `
-}
-`;
-    builder.addFragmentCode(getMappedIdColor);
-
     fragmentMain += `
   vec4 rgba = getMappedIdColor(valueForColor);
   if (rgba.a > 0.0) {

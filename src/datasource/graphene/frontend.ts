@@ -226,6 +226,7 @@ const RED_COLOR_SEGMENT_PACKED = BigInt(packColor(RED_COLOR_SEGMENT));
 const BLUE_COLOR_SEGMENT_PACKED = BigInt(packColor(BLUE_COLOR_SEGMENT));
 const TRANSPARENT_COLOR_PACKED = BigInt(packColor(TRANSPARENT_COLOR));
 const MULTICUT_OFF_COLOR = vec4.fromValues(0, 0, 0, 0.5);
+const MULTICUT_OFF_COLOR_PACKED = BigInt(packColor(MULTICUT_OFF_COLOR));
 const WHITE_COLOR = vec3.fromValues(1, 1, 1);
 
 class GrapheneMeshSource extends WithParameters(
@@ -2767,14 +2768,12 @@ class MulticutSegmentsTool extends LayerTool<SegmentationUserLayer> {
     const priorBaseSegmentHighlighting =
       displayState.baseSegmentHighlighting.value;
     const priorHighlightColor = displayState.highlightColor.value;
-    const priorHideSegmentZero = displayState.hideSegmentZero.value;
 
     activation.bindInputEventMap(MULTICUT_SEGMENTS_INPUT_EVENT_MAP);
     activation.registerDisposer(() => {
       resetMulticutDisplay();
       displayState.baseSegmentHighlighting.value = priorBaseSegmentHighlighting;
       displayState.highlightColor.value = priorHighlightColor;
-      displayState.hideSegmentZero.value = priorHideSegmentZero;
     });
     const resetMulticutDisplay = () => {
       resetTemporaryVisibleSegmentsState(segmentationGroupState);
@@ -2795,7 +2794,6 @@ class MulticutSegmentsTool extends LayerTool<SegmentationUserLayer> {
       displayState.highlightColor.value = multicutState.blueGroup.value
         ? BLUE_COLOR_HIGHTLIGHT
         : RED_COLOR_HIGHLIGHT;
-      displayState.hideSegmentZero.value = false;
       segmentsState.useTemporaryVisibleSegments.value = true;
       segmentsState.useTemporarySegmentEquivalences.value = true;
       // add focus segment and red/blue segments
@@ -2819,6 +2817,10 @@ class MulticutSegmentsTool extends LayerTool<SegmentationUserLayer> {
       displayState.tempSegmentStatedColors2d.value.set(
         focusSegment,
         TRANSPARENT_COLOR_PACKED,
+      );
+      displayState.tempSegmentStatedColors2d.value.set(
+        0n,
+        MULTICUT_OFF_COLOR_PACKED,
       );
       for (const segment of multicutState.redSegments) {
         displayState.tempSegmentStatedColors2d.value.set(
