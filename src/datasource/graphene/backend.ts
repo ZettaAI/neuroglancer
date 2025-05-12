@@ -203,7 +203,7 @@ export class GrapheneMeshSource extends WithParameters(
 
 interface ShardInfo {
   shardUrl: string;
-  offset: Uint64;
+  offset: bigint;
 }
 
 interface GrapheneMultiscaleManifestChunk extends MultiscaleManifestChunk {
@@ -293,7 +293,7 @@ export class GrapheneMultiscaleMeshSource extends WithParameters(
     this.parameters.fragmentUrl,
   );
 
-  addNewSegment(segment: Uint64) {
+  addNewSegment(segment: bigint) {
     const { newSegments } = this;
     newSegments.add(segment);
     const TEN_MINUTES = 1000 * 60 * 10;
