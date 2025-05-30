@@ -234,11 +234,11 @@ async function decodeMultiscaleFragmentChunk(
 ) {
   const { lod } = chunk;
   const source = chunk.manifestChunk!.source! as GrapheneMultiscaleMeshSource;
-  const rawMesh = await decodeDracoPartitioned(new Uint8Array(response), 0, lod !== 0, false);
-  rawMesh.vertexPositions = new Float32Array(
-    rawMesh.vertexPositions.buffer,
-    rawMesh.vertexPositions.byteOffset,
-    rawMesh.vertexPositions.length,
+  const rawMesh = await decodeDracoPartitioned(
+    new Uint8Array(response),
+    source.parameters.metadata.vertexQuantizationBits,
+    lod !== 0,
+    false,
   );
   assignMultiscaleMeshFragmentData(chunk, rawMesh, source.format.vertexPositionFormat);
   const manifest = chunk.manifestChunk!.manifest!;
