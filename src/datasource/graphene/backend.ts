@@ -240,41 +240,11 @@ async function decodeMultiscaleFragmentChunk(
     lod !== 0,
     false,
   );
-  assignMultiscaleMeshFragmentData(chunk, rawMesh, source.format.vertexPositionFormat);
-  const manifest = chunk.manifestChunk!.manifest!;
-  const minVertex = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
-    maxVertex = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
-  const vertexPositions = chunk.meshData!.vertexPositions;
-  for (let i = 0; i < vertexPositions.length; ++i) {
-    const v = (vertexPositions as Float32Array)[i];
-    minVertex[i % 3] = Math.min(minVertex[i % 3], v);
-    maxVertex[i % 3] = Math.max(maxVertex[i % 3], v);
-  }
-  const { chunkShape } = manifest;
-  const expectedMin = [0, 0, 0],
-    expectedMax = [0, 0, 0];
-  const row = chunk.chunkIndex;
-  for (let i = 0; i < 3; ++i) {
-    const size = chunkShape[i] * 2 ** lod;
-    expectedMin[i] = size * manifest.octree[row * 5 + i] + manifest.chunkGridSpatialOrigin[i];
-    expectedMax[i] = expectedMin[i] + size;
-  }
-  console.log(
-    `lod=${lod} cell ${manifest.octree.slice(row * 5, row * 5 + 3).join(",")}: chunk shape=${chunkShape.join(",")} actual min=${minVertex}, max=${maxVertex}, expeted min=${expectedMin}, max=${expectedMax}`,
+  assignMultiscaleMeshFragmentData(
+    chunk,
+    rawMesh,
+    source.format.vertexPositionFormat,
   );
-}
-
-function mergeArrayBuffers(buffers: ArrayBuffer[]): ArrayBuffer {
-  const totalLength = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
-  const mergedBuffer = new ArrayBuffer(totalLength);
-  const mergedView = new Uint8Array(mergedBuffer);
-
-  let offset = 0;
-  for (const buffer of buffers) {
-      mergedView.set(new Uint8Array(buffer), offset);
-      offset += buffer.byteLength;
-  }
-  return mergedBuffer;
 }
 
 @registerSharedObject()
@@ -344,17 +314,51 @@ export class GrapheneMultiscaleMeshSource extends WithParameters(
     try {
       if (fragments !== null) {
         const fragmentsIds = fragments[chunkIndex];
-        let result: ArrayBuffer[] = new Array();
-        for (const fragmentId of fragmentsIds) {
+        
+        if (fragmentsIds.length === 1) {
+          // Single fragment - use simple path
           let { response } = await downloadFragment(
             this.fragmentKvStore,
-            fragmentId,
+            fragmentsIds[0],
             parameters,
             signal,
           );
-          result.push(await response.arrayBuffer())
+          await decodeMultiscaleFragmentChunk(chunk, await response.arrayBuffer());
+        } else {
+          // Multiple fragments - decode each individually and merge the raw data
+          const rawMeshData = [];
+          
+          for (const fragmentId of fragmentsIds) {
+            let { response } = await downloadFragment(
+              this.fragmentKvStore,
+              fragmentId,
+              parameters,
+              signal,
+            );
+            
+            const arrayBuffer = await response.arrayBuffer();
+            
+            // Decode this fragment individually to get raw mesh data
+            const rawMesh = await decodeDracoPartitioned(
+              new Uint8Array(arrayBuffer),
+              this.parameters.metadata.vertexQuantizationBits,
+              chunk.lod !== 0,
+              false,
+            );
+            
+            rawMeshData.push(rawMesh);
+          }
+          
+          // Merge the raw mesh data
+          const mergedMesh = this.mergeRawMeshData(rawMeshData);
+          
+          // Assign the merged data to the chunk
+          assignMultiscaleMeshFragmentData(
+            chunk,
+            mergedMesh,
+            this.format.vertexPositionFormat,
+          );
         }
-        await decodeMultiscaleFragmentChunk(chunk, mergeArrayBuffers(result));
       }
     } catch (e) {
       if (isNotFoundError(e)) {
@@ -362,6 +366,63 @@ export class GrapheneMultiscaleMeshSource extends WithParameters(
       }
       Promise.reject(e);
     }
+  }
+
+  private mergeRawMeshData(fragments: any[]): any {
+    if (fragments.length === 1) {
+      return fragments[0];
+    }
+    
+    // Calculate total sizes
+    let totalVertices = 0;
+    let totalIndices = 0;
+    for (const fragment of fragments) {
+      totalVertices += fragment.vertexPositions.length;
+      totalIndices += fragment.indices.length;
+    }
+    
+    // Create merged arrays
+    const mergedVertices = new Uint32Array(totalVertices);
+    const mergedIndices = new Uint32Array(totalIndices);
+    const mergedSubChunkOffsets = new Uint32Array(9); // 8 subchunks + total
+    
+    let vertexOffset = 0;
+    let indexOffset = 0;
+    
+    for (const fragment of fragments) {
+      // Copy vertices
+      mergedVertices.set(fragment.vertexPositions, vertexOffset);
+      
+      // Copy and adjust indices (add vertex offset)
+      for (let i = 0; i < fragment.indices.length; i++) {
+        mergedIndices[indexOffset + i] = fragment.indices[i] + (vertexOffset / 3);
+      }
+      
+      // Merge subchunk offsets
+      for (let subchunk = 0; subchunk < 8; subchunk++) {
+        const subchunkStart = fragment.subChunkOffsets[subchunk];
+        const subchunkEnd = fragment.subChunkOffsets[subchunk + 1];
+        const subchunkSize = subchunkEnd - subchunkStart;
+        
+        if (subchunkSize > 0) {
+          mergedSubChunkOffsets[subchunk + 1] += subchunkSize;
+        }
+      }
+
+      vertexOffset += fragment.vertexPositions.length;
+      indexOffset += fragment.indices.length;
+    }
+
+    // Convert subchunk counts to cumulative offsets
+    for (let i = 1; i <= 8; i++) {
+      mergedSubChunkOffsets[i] += mergedSubChunkOffsets[i - 1];
+    }
+
+    return {
+      vertexPositions: mergedVertices,
+      indices: mergedIndices,
+      subChunkOffsets: mergedSubChunkOffsets
+    };
   }
 
   getFragmentKey(objectKey: string | null, fragmentId: string) {
